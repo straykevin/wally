@@ -2,65 +2,31 @@ name: Release
 
 on:
   push:
-    tags: ["*"]
+    tags: ["v*"]
 
 jobs:
-  windows:
-    runs-on: windows-latest
-
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-
-    - name: Build release binary
-      run: cargo build --verbose --locked --release
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v1
-      with:
-        name: wally-win64
-        path: target/release/wally.exe
-
-  macos:
-    runs-on: macos-latest
-
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-
-    - name: Install Rust
-      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-    - name: Build release binary
-      run: |
-        source $HOME/.cargo/env
-        cargo build --verbose --locked --release
-      env:
-        OPENSSL_STATIC: 1
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v1
-      with:
-        name: wally-macos
-        path: target/release/wally
-
-  linux:
+  create-release:
+    if: endsWith(github.ref, 'main')
+    name: Create Release
     runs-on: ubuntu-latest
-
+    outputs:
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          prerelease: false
 
-    - name: Build
-      run: cargo build --locked --verbose --release
-      env:
-        OPENSSL_STATIC: 1
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v1
-      with:
-        name: wally-linux
-        path: target/release/wally
+  build-release:
+    uses: ./.github/workflows/build.yml
+    needs: create-release
+    with:
+      tag: ${{ github.ref_name }}
+      upload_url: ${{ needs.create-release.outputs.upload_url }}
+      release_ref: ${{ github.ref_name }}
+      overwrite: false
